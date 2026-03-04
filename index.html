@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Builder Log</title>
+
+  <!-- Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+
+  <!-- CDN Libraries -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+  <!-- App Styles -->
+  <link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+
+<!-- ══════════ HEADER ══════════ -->
+<header class="site-header">
+  <a class="logo" onclick="showDashboard()">Builder Log</a>
+  <div class="header-right">
+    <button id="theme-toggle" title="Toggle dark mode">☾</button>
+    <button class="btn btn-primary" id="btn-new" onclick="openEditor()">+ New Log</button>
+  </div>
+</header>
+
+<!-- ══════════ DASHBOARD ══════════ -->
+<div id="v-dashboard">
+  <section class="hero">
+    <h1>My Builder Log</h1>
+    <p>A running log of what I'm building — planning sessions, decisions, and ideas.</p>
+  </section>
+
+  <!-- Search + Sort bar -->
+  <div class="search-sort-bar">
+    <div class="search-wrap">
+      <span class="search-icon">🔍</span>
+      <input type="text" id="search-input" placeholder="Search logs…"
+             oninput="renderCards()" autocomplete="off">
+    </div>
+    <select id="sort-select" onchange="renderCards()" title="Sort order">
+      <option value="newest">Newest first</option>
+      <option value="oldest">Oldest first</option>
+      <option value="az">A – Z</option>
+    </select>
+  </div>
+
+  <!-- Tag filter bar -->
+  <div class="tag-bar-wrapper">
+    <div id="tag-filters"></div>
+    <div id="tag-add-form">
+      <input id="tag-add-input" placeholder="New tag…" maxlength="30"
+             onkeydown="if(event.key==='Enter')addTag()">
+      <button class="btn btn-sm btn-primary" onclick="addTag()">Add</button>
+    </div>
+    <button class="manage-btn" id="manage-btn" onclick="toggleManageTags()"
+            title="Add or remove tags">⚙ Tags</button>
+  </div>
+
+  <div id="cards-grid"></div>
+
+  <!-- Data export / import -->
+  <div class="data-bar">
+    <span class="data-bar-label">Data</span>
+    <button class="btn btn-secondary btn-sm" onclick="exportJSON()" title="Download all logs as JSON backup">⬇ Export JSON</button>
+    <label class="btn btn-secondary btn-sm" style="cursor:pointer" title="Restore logs from a JSON backup">
+      ⬆ Import JSON
+      <input type="file" id="import-file" accept=".json" style="display:none" onchange="importJSON(this)">
+    </label>
+  </div>
+</div>
+
+<!-- ══════════ READER ══════════ -->
+<div id="v-reader">
+  <div class="reader-top">
+    <button class="btn btn-secondary" onclick="showDashboard()">← Back</button>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-secondary btn-sm" id="r-edit-btn">Edit</button>
+      <button class="btn btn-primary btn-sm" id="r-pdf-btn">Export PDF</button>
+    </div>
+  </div>
+  <div class="reader-meta" id="reader-meta"></div>
+  <div class="prose"      id="reader-body"></div>
+</div>
+
+<!-- ══════════ EDITOR ══════════ -->
+<div id="v-editor">
+  <div class="editor-top">
+    <h2 id="ed-title">New Log</h2>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-secondary" onclick="showDashboard()">Cancel</button>
+      <button class="btn btn-danger"    id="ed-del-btn" style="display:none" onclick="deleteProject()">Delete</button>
+      <button class="btn btn-primary"   onclick="saveProject()">Save</button>
+    </div>
+  </div>
+
+  <div class="editor-fields">
+    <input type="hidden" id="f-id">
+    <div class="fg">
+      <label>Title *</label>
+      <input type="text" id="f-title" placeholder="e.g. Calorie Tracker">
+    </div>
+    <div class="fg">
+      <label>Category</label>
+      <input type="text" id="f-cat" placeholder="e.g. Mobile App">
+    </div>
+    <div class="fg">
+      <label>Tags <span style="font-weight:400;opacity:.6">(comma-separated)</span></label>
+      <div class="tag-input-wrap">
+        <input type="text" id="f-tags" placeholder="e.g. AI, Voice, Health"
+               autocomplete="off"
+               oninput="onTagsInput(this)"
+               onkeydown="onTagsKeydown(event)"
+               onblur="setTimeout(()=>closeSuggestions(),180)">
+        <div id="tag-suggestions"></div>
+      </div>
+    </div>
+    <div class="fg">
+      <label>Date</label>
+      <input type="text" id="f-date" placeholder="e.g. 2026-03-04">
+    </div>
+    <div class="fg" style="grid-column: 1 / -1;">
+      <label>Card description <span style="font-weight:400;opacity:.6">(optional — auto-generated from content if blank)</span></label>
+      <textarea id="f-desc" rows="2" placeholder="A short summary shown on the card…" style="resize:vertical"></textarea>
+    </div>
+    <div class="fg">
+      <label>GitHub URL <span style="font-weight:400;opacity:.6">(optional)</span></label>
+      <input type="url" id="f-github" placeholder="https://github.com/you/project">
+    </div>
+    <div class="fg">
+      <label>Live / Deploy URL <span style="font-weight:400;opacity:.6">(optional)</span></label>
+      <input type="url" id="f-deploy" placeholder="https://yourproject.vercel.app">
+    </div>
+    <div class="fg" style="grid-column: 1 / -1;">
+      <label>Upload .md or .txt file</label>
+      <input type="file" id="f-upload" accept=".md,.txt">
+      <span class="hint">Drag in a Markdown file — or type/paste directly in the editor below. These are the only two ways to add content.</span>
+    </div>
+  </div>
+
+  <div class="editor-panes">
+    <div>
+      <div class="pane-label-row">
+        <div class="pane-label">Markdown</div>
+        <span id="word-count"></span>
+      </div>
+      <textarea id="md-textarea"
+        placeholder="Write your log in Markdown…&#10;&#10;## Round 1&#10;&#10;> **You:** What should I build?&#10;&#10;> **AI:** Let's figure it out…"></textarea>
+    </div>
+    <div>
+      <div class="pane-label">Preview</div>
+      <div id="md-preview" class="prose">
+        <p style="color:var(--muted);font-style:italic">Start typing to see a live preview…</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ FOOTER ══════════ -->
+<footer>&copy; 2026 Sridattasai18 &middot; Builder Log &middot; All rights reserved.</footer>
+
+<!-- App Script (must be after DOM) -->
+<script src="app.js"></script>
+
+</body>
+</html>
