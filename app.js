@@ -231,9 +231,12 @@ function openReader(id) {
     <div class="rdate">${formatDate(p.date)}</div>
     <div class="rtags">${(p.tags || []).map(tagHTML).join('')}</div>`;
 
+  const isHTML = p.contentType === 'html';
   document.getElementById('reader-body').innerHTML =
     p.content
-      ? marked.parse(p.content)
+      ? isHTML
+        ? `<div class="html-content">${p.content}</div>`
+        : marked.parse(p.content)
       : '<div style="text-align:center;padding:48px 20px;color:var(--muted)">' +
         '<p style="font-size:1.05rem;margin-bottom:6px">No content yet.</p>' +
         '<p style="font-size:.88rem">Open <strong>Edit</strong> to type, paste, or upload a .md file.</p>' +
@@ -261,11 +264,13 @@ let editingId = null;
 function openEditor(id) {
   ['f-id','f-title','f-cat','f-tags','f-desc','f-github','f-deploy'].forEach(i => document.getElementById(i).value = '');
   document.getElementById('f-date').value     = new Date().toISOString().slice(0,10);
+  document.getElementById('f-content-type').value = 'markdown';
   document.getElementById('md-textarea').value = '';
   document.getElementById('md-preview').innerHTML =
     '<p style="color:var(--muted);font-style:italic">Start typing to see a live preview\u2026</p>';
   document.getElementById('word-count').textContent = '';
   document.getElementById('ed-del-btn').style.display = 'none';
+  updateEditorMode();
 
   if (id) {
     const p = getProjects().find(x => x.id === id);
@@ -280,6 +285,7 @@ function openEditor(id) {
     document.getElementById('f-desc').value         = p.description || '';
     document.getElementById('f-github').value        = p.github      || '';
     document.getElementById('f-deploy').value        = p.deploy      || '';
+    document.getElementById('f-content-type').value = p.contentType || 'markdown';
     document.getElementById('md-textarea').value    = p.content     || '';
     updatePreview();
     document.getElementById('ed-del-btn').style.display = 'inline-flex';
@@ -301,6 +307,7 @@ function saveProject() {
   const autoDesc   = rawMd.replace(/[#>*_\-`]/g,'').trim().slice(0,160);
   const tags       = document.getElementById('f-tags').value.split(',').map(t=>t.trim()).filter(Boolean);
 
+  const contentType = document.getElementById('f-content-type').value;
   const entry = {
     id:          editingId || Date.now().toString(),
     title,
@@ -311,6 +318,7 @@ function saveProject() {
     github:      document.getElementById('f-github').value.trim() || null,
     deploy:      document.getElementById('f-deploy').value.trim() || null,
     content:     rawMd,
+    contentType: contentType || 'markdown',
   };
 
   const projects = getProjects();
@@ -338,16 +346,46 @@ function deleteProject() {
 }
 
 /* Live preview + word count */
+function updateEditorMode() {
+  const contentType = document.getElementById('f-content-type').value;
+  const mdSection = document.querySelector('.editor-panes');
+  const uploadSection = document.getElementById('f-upload').parentElement;
+  const textarea = document.getElementById('md-textarea');
+  
+  if (contentType === 'html') {
+    mdSection.style.display = 'grid';
+    uploadSection.style.display = 'none';
+    document.querySelector('.pane-label-row .pane-label').textContent = 'HTML';
+    textarea.placeholder = 'Write or paste your HTML code here...\n\n<h2>My Component</h2>\n<p>Interactive HTML content</p>';
+  } else {
+    mdSection.style.display = 'grid';
+    uploadSection.style.display = 'block';
+    document.querySelector('.pane-label-row .pane-label').textContent = 'Markdown';
+    textarea.placeholder = 'Write your log in Markdown…\n\n## Round 1\n\n> **You:** What should I build?\n\n> **AI:** Let\'s figure it out…';
+  }
+  updatePreview();
+}
+
 function updatePreview() {
   const md = document.getElementById('md-textarea').value;
-  document.getElementById('md-preview').innerHTML = md
-    ? marked.parse(md)
-    : '<p style="color:var(--muted);font-style:italic">Start typing to see a live preview\u2026</p>';
-  const plain = md.replace(/```[\s\S]*?```/g,'').replace(/[#>*_\-`\[\]()]/g,'').trim();
-  const words = plain ? plain.split(/\s+/).filter(Boolean).length : 0;
-  const mins  = Math.max(1, Math.round(words / 200));
-  document.getElementById('word-count').textContent =
-    words ? `${words.toLocaleString()} word${words!==1?'s':''} \u00b7 ${mins} min read` : '';
+  const contentType = document.getElementById('f-content-type').value;
+  const wordCountEl = document.getElementById('word-count');
+  
+  if (contentType === 'html') {
+    document.getElementById('md-preview').innerHTML = md
+      ? `<div class="html-content">${md}</div>`
+      : '<p style="color:var(--muted);font-style:italic">Start typing to see a live preview\u2026</p>';
+    wordCountEl.textContent = '';
+  } else {
+    document.getElementById('md-preview').innerHTML = md
+      ? marked.parse(md)
+      : '<p style="color:var(--muted);font-style:italic">Start typing to see a live preview\u2026</p>';
+    const plain = md.replace(/```[\s\S]*?```/g,'').replace(/[#>*_\-`\[\]()]/g,'').trim();
+    const words = plain ? plain.split(/\s+/).filter(Boolean).length : 0;
+    const mins  = Math.max(1, Math.round(words / 200));
+    wordCountEl.textContent =
+      words ? `${words.toLocaleString()} word${words!==1?'s':''} \u00b7 ${mins} min read` : '';
+  }
 }
 document.getElementById('md-textarea').addEventListener('input', updatePreview);
 
@@ -358,10 +396,17 @@ document.getElementById('f-upload').addEventListener('change', function(e) {
   const fr = new FileReader();
   fr.onload = ev => {
     document.getElementById('md-textarea').value = ev.target.result;
+    
+    // Auto-detect content type based on file extension
+    if (file.name.endsWith('.html')) {
+      document.getElementById('f-content-type').value = 'html';
+      updateEditorMode();
+    }
+    
     updatePreview();
     if (!document.getElementById('f-title').value)
       document.getElementById('f-title').value =
-        file.name.replace(/\.(md|txt)$/,'').replace(/[-_]/g,' ');
+        file.name.replace(/\.(md|txt|html)$/,'').replace(/[-_]/g,' ');
   };
   fr.readAsText(file);
 });

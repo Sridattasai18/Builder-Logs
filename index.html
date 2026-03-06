@@ -118,6 +118,13 @@
       </div>
     </div>
     <div class="fg">
+      <label>Content Type</label>
+      <select id="f-content-type" onchange="updateEditorMode()">
+        <option value="markdown">Markdown</option>
+        <option value="html">HTML Script</option>
+      </select>
+    </div>
+    <div class="fg">
       <label>Date</label>
       <input type="text" id="f-date" placeholder="e.g. 2026-03-04">
     </div>
@@ -134,9 +141,9 @@
       <input type="url" id="f-deploy" placeholder="https://yourproject.vercel.app">
     </div>
     <div class="fg" style="grid-column: 1 / -1;">
-      <label>Upload .md or .txt file</label>
-      <input type="file" id="f-upload" accept=".md,.txt">
-      <span class="hint">Drag in a Markdown file — or type/paste directly in the editor below. These are the only two ways to add content.</span>
+      <label>Upload .md, .txt, or .html file</label>
+      <input type="file" id="f-upload" accept=".md,.txt,.html">
+      <span class="hint">Drag in a Markdown or HTML file — or type/paste directly in the editor below. These are the only two ways to add content.</span>
     </div>
   </div>
 
